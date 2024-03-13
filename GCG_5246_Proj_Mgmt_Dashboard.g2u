@@ -1,0 +1,392 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Caption("Project Management Dashboard")
+Gui.Form..Size(22995,14445)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form.gsPROJ.Create(GsGridControl)
+Gui.Form.gsPROJ.Size(22755,12660)
+Gui.Form.gsPROJ.Position(75,855)
+Gui.Form.dtpCutOffDay.Create(DatePicker)
+Gui.Form.dtpCutOffDay.Size(1935,285)
+Gui.Form.dtpCutOffDay.Position(90,375)
+Gui.Form.lbl1.Create(Label,"CutOff Date",True,1230,255,0,90,150,True,0,"Arial",8,-2147483633,0)
+Gui.Form.cmdExport.Create(Button)
+Gui.Form.cmdExport.Size(855,375)
+Gui.Form.cmdExport.Position(75,13605)
+Gui.Form.cmdExport.Caption("Export")
+Gui.Form.cmdExport.Event(Click,cmdExport_Click)
+Gui.Form.lblRows.Create(Label,"Rows",True,600,255,0,21195,630,True,0,"Arial",8,-2147483633,0)
+Gui.Form.txtRows.Create(TextBox,"",True,915,195,0,21885,600,False,1,"Arial",8,-2147483645,0)
+Gui.Form.cmdLoad.Create(Button)
+Gui.Form.cmdLoad.Size(855,375)
+Gui.Form.cmdLoad.Position(2235,345)
+Gui.Form.cmdLoad.Caption("Load")
+Gui.Form.cmdLoad.Event(Click,cmdLoad_Click1)
+Gui.Form.proBar.Create(ProgressBar)
+Gui.Form.proBar.Visible(False)
+Gui.Form.proBar.Size(3735,165)
+Gui.Form.proBar.Position(3300,450)
+Gui.Form.lblProBar.Create(Label,"Label",False,10320,255,0,7200,465,True,0,"Arial",8,-2147483633,0)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'BN, Jul 27, 2018
+'Customer: R&D Custom Automation
+'This dashboard will be run from a custom menu item
+'Project value = Sales Order values (current and history)
+
+f.Intrinsic.Control.Try
+	v.Local.sError.Declare
+	
+	'Initialize table and grid (to avoid error when clicking Load button for the first time, it will clear the grid without error)
+	f.Data.DataTable.Create("PROJ",True)
+	gui.Form.gsPROJ.AddGridviewFromDatatable("GVPROJ","PROJ")
+	gui.Form.gsPROJ.MainView("GVPROJ")
+	
+	f.Intrinsic.Control.CallSub("Set_Anchor")
+	gui.Form..Show
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}GAB Version: {5}}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)	
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.Set_Anchor.Start
+f.Intrinsic.Control.Try
+	v.Local.sError.Declare
+	'0 - None     1 - Top     2 - Bottom 	  4 - Left     	8 - Right
+	GUI.Form.lbl1.Anchor(5)
+	gui.Form.dtpCutOffDay.Anchor(5)
+	GUI.Form.cmdLoad.Anchor(5)
+	GUI.Form.lblRows.Anchor(9)
+	gui.Form.txtRows.Anchor(9)
+	gui.Form.gsPROJ.Anchor(15)
+	gui.Form.cmdExport.Anchor(6)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}GAB Version: {5}}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)	
+F.Intrinsic.Control.EndTry
+Program.Sub.Set_Anchor.End
+
+Program.Sub.Form_UnLoad.Start
+f.Intrinsic.Control.Try
+	v.Local.sError.Declare
+
+	F.Intrinsic.Control.If(V.ODBC.conx.State,=,1)
+		F.ODBC.Connection!conx.close
+	F.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+	Function.Intrinsic.String.Build("Subroutine Error {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End	
+F.Intrinsic.Control.EndTry
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.cmdLoad_Click1.Start
+f.Intrinsic.Control.Try
+	v.Local..BulkDeclareString(sError,sSQL)
+	v.Local..BulkDeclareLong(iCurrentYear,iYearSelected)
+	v.Local.dCutOffDate.Declare
+	v.Local.dBeginOfCurrentYear.Declare
+
+	'Check if CutOff year is not after current year
+	F.Intrinsic.Date.Year(v.Ambient.Date,v.Local.iCurrentYear)
+	F.Intrinsic.Date.Year(v.Screen.Form!dtpCutOffDay.Value,v.Local.iYearSelected)
+	f.Intrinsic.Control.If(v.Local.iYearSelected,>,v.Local.iCurrentYear)
+		f.Intrinsic.UI.Msgbox("Please select CutOff Date not after current year","Invalid CutOff Date")
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+	v.Local.dCutOffDate.Set(v.Screen.Form!dtpCutOffDay.Value)
+	F.Intrinsic.Date.DateSerial(v.Local.iCurrentYear,1,1,v.Local.dBeginOfCurrentYear)
+
+	'Clearing rows before loading new grid and table makes program run smoothier
+	gui.Form.gsPROJ.ClearRows("GVPROJ")
+
+	f.ODBC.Connection!conx.OpenCompanyConnection(600)
+	f.ODBC.Connection!conx.Execute("Delete from GCG_5246_Proj_Value")
+	
+	'Visible the progress stuff
+	gui.Form.lblProBar.Visible(True)
+	gui.Form.proBar.Visible(True)
+	gui.Form.proBar.Max(15)
+	
+	'Load PROJ Datatable
+	f.Intrinsic.Control.If(v.DataTable.PROJ.Exists)
+		f.Data.DataTable.Close("PROJ")
+	f.Intrinsic.Control.EndIf
+	f.Data.DataTable.CreateFromSQL("PROJ","conx","Select Project, Descr as Description, Orig_Matl + Orig_Outs + Orig_Labr as Total_Cost from V_Project_Master",True)
+	
+	'1/Project Value = All $$ from Order_Hist_Line and Order_Lines
+	gui.Form.proBar.Value(1)
+	gui.Form.lblProBar.Caption("Calculating Project Value ...")	
+
+	'1.1/From Order_Hist_Line
+	f.Data.DataTable.CreateFromSQL("PROJ_Value","conx","select hh.Project,sum(hl.Extension) as Proj_Value from V_Order_Hist_Head hh left join V_Order_Hist_Line hl on hh.Order_No = hl.Order_No  AND hh.Order_suffix = hl.order_suffix where hh.Project in (Select Project from V_Project_Master) and IsNull(hl.Extension,0) > 0 and hl.Line_Type = 'S' Group By hh.Project",True)
+	f.Data.DataTable.SaveToDB("PROJ_Value","conx","GCG_5246_Proj_Value","",128)
+	f.Data.DataTable.Close("PROJ_Value")
+
+	'1.2/From Order_Lines
+	'BN Aug 20, delete in join clause "  AND hh.Order_suffix = hl.suffix"
+	f.Data.DataTable.CreateFromSQL("PROJ_Value","conx","select hh.Project,sum(hl.Extension) as Proj_Value from V_Order_Header hh left join V_Order_Lines hl on hh.Order_No = hl.Order_No where hh.Project in (Select Project from V_Project_Master) and IsNull(hl.Extension,0) > 0 and hl.line_type = 'S' Group By hh.Project",True)
+	f.Data.DataTable.SaveToDB("PROJ_Value","conx","GCG_5246_Proj_Value","",128)
+	f.Data.DataTable.Close("PROJ_Value")
+	'1.3/Populate Proj_Value to PROJ table
+	f.Data.Dictionary.CreateFromSQL("Value_Dict","conx","select Project,sum(Proj_Value) as Proj_Value from GCG_5246_Proj_Value Group by Project")
+	f.Data.DataTable.AddColumn("PROJ","Proj_Value","float")
+	f.Data.Dictionary.SetDefaultReturn("Value_Dict",0)
+	f.Data.DataTable.FillFromDictionary("PROJ","Value_Dict","Project","Proj_Value")
+	f.Data.Dictionary.Close("Value_Dict")
+	
+	'2/Estimated Gross Profit = Proj_Value - Total_Cost
+	gui.Form.proBar.Value(2)
+	gui.Form.lblProBar.Caption("Calculating Gross Profit ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Estimated_Gross_Profit","Float","Proj_Value - Total_Cost")
+	
+	'3/Direct_Cost = Summary of Labor + Material + Outside from V_Job_Detail *** Used CutOff Date ***
+	gui.Form.proBar.Value(3)
+	gui.Form.lblProBar.Caption("Calculating Direct Cost ...")
+	f.Intrinsic.String.Build("Select h.Project,sum(dt.Amount_Labor) from  V_Job_Detail dt left join V_Job_Header h  on h.Job = dt.Job and h.Suffix = dt.Suffix where h.Project in (Select Project from V_Project_Master) and dt.Charge_Date <= '{0}' and dt.LMO in ('M','L','O') Group by h.Project",v.Local.dCutOffDate.PervasiveDate,v.Local.sSQL)
+	f.Data.Dictionary.CreateFromSQL("Direct_Cost_Dict","conx",v.Local.sSQL)
+	f.Data.DataTable.AddColumn("PROJ","Direct_Cost","float")
+	f.Data.Dictionary.SetDefaultReturn("Direct_Cost_Dict",0)
+	f.Data.DataTable.FillFromDictionary("PROJ","Direct_Cost_Dict","Project","Direct_Cost")
+	f.Data.Dictionary.Close("Direct_Cost_Dict")
+	
+	'4/Pct_Completion = If(Total_Cost > 0,Direct_Cost/Total_Cost,0)
+	gui.Form.proBar.Value(4)
+	gui.Form.lblProBar.Caption("Calculating Percent Completion ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Pct_Completion","Float","IIF(Total_Cost > 0,Direct_Cost/Total_Cost,0)")
+	
+	'5/Estimated_Cost_To_Complete = Total_Cost - Direct_Cost
+	gui.Form.proBar.Value(5)
+	gui.Form.lblProBar.Caption("Calculating Estimated Cost To Complete ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Estimated_Cost_To_Complete","Float","Total_Cost - Direct_Cost")
+	
+	'6/Revenue =  If(Estimated_Gross_Profit > 0,Pct_Completion * Proj_Value,Proj_Value - Estimated_Cost_To_Complete)
+	gui.Form.proBar.Value(6)
+	gui.Form.lblProBar.Caption("Calculating Revenue ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Revenue","Float","IIF(Estimated_Gross_Profit > 0,Pct_Completion * Proj_Value,Proj_Value - Estimated_Cost_To_Complete)")
+	
+	'7/Gross Profit =  Revenue - Direct_Cost
+	gui.Form.proBar.Value(7)
+	gui.Form.lblProBar.Caption("Calculating Gross Profit ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Gross_Profit","Float","Revenue - Direct_Cost")
+	
+	'8/Gross Profit Pct =  If(Proj_Value > 0,Estimated_Gross_Profit / Proj_Value,0)
+	gui.Form.proBar.Value(8)
+	gui.Form.lblProBar.Caption("Calculating Gross Profit Percent...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Gross_Profit_Pct","Float","IIF(Proj_Value > 0,Estimated_Gross_Profit / Proj_Value,0)")
+	
+	'9/Billed To Date =  Summary of all invoices for this project but exclude Credit Memos 
+	gui.Form.proBar.Value(9)
+	gui.Form.lblProBar.Caption("Calculating Billed To Date...")
+	f.Data.Dictionary.CreateFromSQL("Billed_To_Date_Dict","conx","select hh.Project,sum(hl.Extension) as Billed_To_Date from V_Order_Hist_Head hh left join V_Order_Hist_Line hl on hh.Order_No = hl.Order_No  AND hh.Order_suffix = hl.order_suffix where hh.Project in (Select Project from V_Project_Master) and hl.Extension > 0 and hL.Line_Type = 'P' Group By hh.Project")
+	f.Data.DataTable.AddColumn("PROJ","Billed_To_Date","float")
+	f.Data.Dictionary.SetDefaultReturn("Billed_To_Date_Dict",0)
+	f.Data.DataTable.FillFromDictionary("PROJ","Billed_To_Date_Dict","Project","Billed_To_Date")
+	f.Data.Dictionary.Close("Billed_To_Date_Dict")
+	
+	'10/Under Billed = If((Revenue - Billed_To_Date) > 0,Revenue - Billed_To_Date,0)
+	gui.Form.proBar.Value(10)
+	gui.Form.lblProBar.Caption("Calculating Under Billed ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Under_Billed","Float","IIF((Revenue - Billed_To_Date) > 0,Revenue - Billed_To_Date,0)")
+	
+	'11/Over Billed = If((Revenue - Billed_To_Date) < 0,Billed_To_Date - Revenue,0)
+	gui.Form.proBar.Value(11)
+	gui.Form.lblProBar.Caption("Calculating Over Billed ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Over_Billed","Float","IIF((Revenue - Billed_To_Date) < 0,Billed_To_Date - Revenue,0)")
+	
+	'12/Current Year To Revenue *** How to calculate current year revenue *** For now, get the same Revenue, later discuss with customer for what it is
+	gui.Form.proBar.Value(12)
+	gui.Form.lblProBar.Caption("Calculating Current Year To Revenue ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Year_To_Revenue","Float","Revenue")
+	
+	'13/Current Year To Direct Cost *** Used CutOff Date ***
+	gui.Form.proBar.Value(13)
+	gui.Form.lblProBar.Caption("Calculating Current Year To Direct Cost ...")	
+	f.Intrinsic.String.Build("Select h.Project,sum(dt.Amount_Labor) from  V_Job_Detail dt left join V_Job_Header h  on h.Job = dt.Job and h.Suffix = dt.Suffix where h.Project in (Select Project from V_Project_Master) and (dt.Charge_Date between '{0}' and '{1}') and dt.LMO in ('M','L','O') Group by h.Project",v.Local.dBeginOfCurrentYear.PervasiveDate,v.Local.dCutOffDate.PervasiveDate,v.Local.sSQL)
+	f.Data.Dictionary.CreateFromSQL("CY_Direct_Cost_Dict","conx",v.Local.sSQL)
+	f.Data.DataTable.AddColumn("PROJ","Year_To_Direct_Cost","float")
+	f.Data.Dictionary.SetDefaultReturn("CY_Direct_Cost_Dict",0)
+	f.Data.DataTable.FillFromDictionary("PROJ","CY_Direct_Cost_Dict","Project","Year_To_Direct_Cost")
+	f.Data.Dictionary.Close("CY_Direct_Cost_Dict")
+	
+	'14/Current Year To Profit = Year_To_Revenue - Year_To_Direct_Cost
+	gui.Form.proBar.Value(13)
+	gui.Form.lblProBar.Caption("Calculating Current Year To Profit ...")
+	f.Data.DataTable.AddExpressionColumn("PROJ","Year_To_Profit","Float","Year_To_Revenue - Year_To_Direct_Cost")
+	
+	'Invisible the progress stuff
+	gui.Form.lblProBar.Caption("")
+	gui.Form.lblProBar.Visible(False)
+	gui.Form.proBar.Visible(False)
+	
+	'Load Grid
+	gui.Form.gsPROJ.AddGridviewFromDatatable("GVPROJ","PROJ")
+	f.Intrinsic.Control.CallSub("Format_GVPROJ")
+	gui.Form.gsPROJ.MainView("GVPROJ")
+	gui.Form.txtRows.Text(v.DataTable.PROJ.RowCount)
+	
+	f.ODBC.Connection!conx.Close
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}GAB Version: {5}}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)	
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdLoad_Click1.End
+
+Program.Sub.Format_GVPROJ.Start
+f.Intrinsic.Control.Try
+	v.Local.sError.Declare
+	
+	Gui.Form.gsPROJ.SuspendLayout()
+	'General format for the grid
+	Gui.Form.gsPROJ.SetGridViewProperty("GVPROJ","AllowSort",True)
+	Gui.Form.gsPROJ.SetGridViewProperty("GVPROJ","AllowFilter",True)
+	Gui.Form.gsPROJ.SetGridViewProperty("GVPROJ","OptionsFindAlwaysVisible",True)
+	Gui.Form.gsPROJ.SetGridViewProperty("GVPROJ","EnableAppearanceOddRow",True)
+	Gui.Form.gsPROJ.SetGridViewProperty("GVPROJ","OptionsViewShowAutoFilterRow",True)
+	Gui.Form.gsPROJ.SetGridViewProperty("GVPROJ","ColumnPanelRowHeight","35")	
+	'Visible Index
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Description,Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost,Pct_Completion,Gross_Profit_Pct","sProperty","VisibleIndex")
+	''Width
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Pct_Completion,Gross_Profit_Pct","sProperty","Width","sWidth","65")
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost","sProperty","Width","sWidth","85")
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Description","sProperty","Width","sWidth","170")
+	'Caption
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Proj_Value@!@Project Value,Estimated_Gross_Profit@!@Estimated Gross Profit,Direct_Cost@!@Direct Cost,Gross_Profit@!@Gross Profit,Billed_To_Date@!@Billed To Date,Estimated_Cost_To_Complete@!@Estimated Cost to Complete,Under_Billed@!@Under Billed,Over_Billed@!@Over Billed,Year_To_Revenue@!@Year To Revenue,Year_To_Direct_Cost@!@Year To Direct Cost,Year_To_Profit@!@Year To Profit,Total_Cost@!@Total Cost,Pct_Completion@!@% Completion,Gross_Profit_Pct@!@% Gross Profit","sProperty","Caption")	
+	'HeaderFontBold
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Description,Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost,Pct_Completion,Gross_Profit_Pct","sProperty","HeaderFontBold")
+	'HeaderWordWrap
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Description,Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost,Pct_Completion,Gross_Profit_Pct","sProperty","HeaderWordWrap")
+	'HeaderHAlignment_Far	
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost,Pct_Completion,Gross_Profit_Pct","sProperty","HeaderAllign_Far")
+	'HeaderVAlignment_Bottom
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Description,Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost,Pct_Completion,Gross_Profit_Pct","sProperty","HeaderVAlignment_Bottom")
+	'Format Display Numeric
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost","sProperty","Decimal_1")
+	Gui.Form.gsPROJ.SetColumnProperty("GVPROJ","Pct_Completion","DisplayCustomNumeric","#0.00%")
+	Gui.Form.gsPROJ.SetColumnProperty("GVPROJ","Gross_Profit_Pct","DisplayCustomNumeric","#0.00%")	
+	Gui.Form.gsPROJ.SetColumnProperty("GVPROJ","Under_Billed","DisplayCustomNumeric","#.##")
+	Gui.Form.gsPROJ.SetColumnProperty("GVPROJ","Over_Billed","DisplayCustomNumeric","#.##")
+	'CellBackColor	
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Description,Proj_Value,Estimated_Gross_Profit","sProperty","CellBackColor","sColor","#FAF0E6")
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Total_Cost,Pct_Completion,Gross_Profit_Pct","sProperty","CellBackColor","sColor","#F5F5DC")
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Under_Billed,Over_Billed","sProperty","CellBackColor","sColor","#F5FFFA")
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit","sProperty","CellBackColor","sColor","#F0F8FF")
+	'Fixed columns left
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Project,Description,Proj_Value,Estimated_Gross_Profit","sProperty","FixedColumn_Left")
+	'SummaryItem
+	f.Intrinsic.Control.CallSub(FormatBulk,"GS","gsPROJ","GV","GVPROJ","sInputColumns","Proj_Value,Estimated_Gross_Profit,Revenue,Direct_Cost,Gross_Profit,Billed_To_Date,Estimated_Cost_To_Complete,Under_Billed,Over_Billed,Year_To_Revenue,Year_To_Direct_Cost,Year_To_Profit,Total_Cost","sProperty","SummaryItem")
+	gui.Form.gsPROJ.AddSummaryItem("GVPROJ","Pct_Completion","Avg_Pct_Completion","Average","","","#.00%")
+	gui.Form.gsPROJ.AddSummaryItem("GVPROJ","Gross_Profit_Pct","Avg_Pct_Gross_Profit","Average","","","#.00%")
+	gui.Form.gsPROJ.ResumeLayout()
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}GAB Version: {5}}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)	
+F.Intrinsic.Control.EndTry
+Program.Sub.Format_GVPROJ.End
+
+Program.Sub.FormatBulk.Start
+f.Intrinsic.Control.Try
+	V.Local..BulkDeclareString(sError,sColumns,sHold)
+	v.Local..BulkDeclareLong(iCnt)
+	
+	f.Intrinsic.String.Split(v.Args.sInputColumns,",",v.Local.sColumns)
+	f.Intrinsic.Control.For(v.Local.iCnt,0,v.Local.sColumns.UBound,1)
+		F.Intrinsic.Control.SelectCase(v.Args.sProperty)
+			F.Intrinsic.Control.Case("Width")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"MinWidth",v.Args.sWidth)
+			F.Intrinsic.Control.Case("Invisible")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"Visible",False)
+			F.Intrinsic.Control.Case("VisibleIndex")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"VisibleIndex",v.Local.iCnt)
+			F.Intrinsic.Control.Case("Caption")
+				f.Intrinsic.String.Split(v.Local.sColumns(v.Local.iCnt),"@!@",v.Local.sHold)
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sHold(0),"Caption",v.Local.sHold(1))
+			F.Intrinsic.Control.Case("HeaderAllign_Far")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"HeaderHAlignment","Far")
+			F.Intrinsic.Control.Case("HeaderFontBold")	
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"HeaderFontBold",True)
+			f.Intrinsic.Control.Case("HeaderWordWrap")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"HeaderWordWrap","Wrap")
+			f.Intrinsic.Control.Case("HeaderVAlignment_Bottom")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"HeaderVAlignment","Bottom")				
+			F.Intrinsic.Control.Case("Decimal_1")	
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"DisplayCustomNumeric","###,###,###,##0.00")
+			f.Intrinsic.Control.Case("CellBackColor")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"CellBackColor",v.Args.sColor)
+			f.Intrinsic.Control.Case("FixedColumn_Left")
+				gui.Form.[v.Args.GS].SetColumnProperty(v.Args.GV,v.Local.sColumns(v.Local.iCnt),"Fixed","Left")
+			f.Intrinsic.Control.Case("SummaryItem")
+				f.Intrinsic.String.Build("Sum_{0}",v.Local.sColumns(v.Local.iCnt),v.Local.sHold)
+				gui.Form.[v.Args.GS].AddSummaryItem(v.Args.GV,v.Local.sColumns(v.Local.iCnt),v.Local.sHold,"Sum","","","n")
+			F.Intrinsic.Control.EndSelect		
+	f.Intrinsic.Control.Next(v.Local.iCnt)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}GAB Version: {5}}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)	
+F.Intrinsic.Control.EndTry
+Program.Sub.FormatBulk.End
+
+Program.Sub.cmdExport_Click.Start
+F.Intrinsic.Control.Try
+	v.Local..BulkDeclareString(sError,sFileExport,sMsg,sDate,sTime,sDir)
+	v.Local..BulkDeclareBoolean(bExcel,bExists)
+	
+	'Check if grid has rows
+	f.Intrinsic.Control.If(v.DataTable.PROJ.RowCount,=,0)
+		f.Intrinsic.UI.Msgbox("No values to export")
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+	
+	'Check folder
+	f.Intrinsic.String.Build("{0}\Custom\ProjMgmtDashboard",v.Caller.BusintDir,v.Local.sDir)
+	f.Intrinsic.File.DirExists(v.Local.sDir,v.Local.bExists)
+	f.Intrinsic.Control.If(v.Local.bExists.Not)
+		f.Intrinsic.File.CreateDir(v.Local.sDir)
+	f.Intrinsic.Control.EndIf
+	
+	'Format date time to create file name with extension date time stamp
+	f.Intrinsic.String.Format(v.Ambient.Date,"MMDDYYYY",v.Local.sDate)
+	f.Intrinsic.String.Format(v.Ambient.Now,"HhNnSs",v.Local.sTime)
+	
+	'Check Excel software
+	F.Automation.MSExcel.CheckPresence(V.Local.bExcel)
+	F.Intrinsic.Control.If(V.Local.bExcel)
+		F.Intrinsic.String.Build("{0}\{1}_{2}.xlsx",v.Local.sDir,v.Local.sDate,v.Local.sTime,V.Local.sFileExport)
+		gui.Form.gsPROJ.Export(V.Local.sFileExport,"xlsx")
+		F.Intrinsic.Task.ShellExec(0,"",V.Local.sFileExport,"","",1)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("{0}\{1}_{2}.csv",v.Local.sDir,v.Local.sDate,v.Local.sTime,V.Local.sFileExport)
+		Gui.Form.gsPROJ.Export(V.Local.sFileExport,"csv")
+		F.Intrinsic.Task.ShellExec(0,"",V.Local.sFileExport,"","",1)
+	F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+F.Intrinsic.UI.Msgbox(V.Local.sError)
+F.Intrinsic.Control.End
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdExport_Click.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$BAO$}$4/18/2018 3:48:04 PM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$
+'BN, Jul 27, 2018
+
+Program.Sub.Comments.End
